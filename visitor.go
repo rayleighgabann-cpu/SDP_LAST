@@ -86,8 +86,6 @@ func (v *HighValueVisitor) VisitDeposit(d *Deposit) {
 }
 func (v *HighValueVisitor) Result() []Element { return v.matches }
 
-// StatementExporter hand-writes pretty JSON. Parents emit the separators
-// between children, so trailing commas cannot appear and nesting is exact.
 type StatementExporter struct {
 	depth int
 	sb    strings.Builder
