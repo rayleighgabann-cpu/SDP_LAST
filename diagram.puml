@@ -1,0 +1,212 @@
+@startuml
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+
+' --- OBSERVER PATTERN ---
+
+package "Observer Pattern" {
+    interface Subject {
+        + Subscribe(EventType, Observer)
+        + Unsubscribe(EventType, Observer)
+        + Publish(Event)
+    }
+
+    interface Observer {
+        + Handle(Event)
+    }
+
+    class EventBus implements Subject {
+        - subs: map[EventType][]Observer
+        - mu: RWMutex
+    }
+
+    class Event {
+        + Type: EventType
+        + Payload: any
+        + Created: time.Time
+    }
+
+    class Transaction {
+        + ID: string
+        + Client: string
+        + Amount: float64
+    }
+
+    ' Listeners
+    class FraudDetector implements Observer {
+        - threshold: float64
+        - bus: Subject
+        + Handle(Event)
+    }
+
+    class BalanceNotifier implements Observer {
+        - count: int64
+        + Handle(Event)
+    }
+
+    class LimitMonitor implements Observer {
+        - limit: float64
+        - spent: map[string]float64
+        + Handle(Event)
+    }
+
+    class AuditLog implements Observer {
+        - entries: []string
+        + Handle(Event)
+    }
+
+    class RateTracker implements Observer {
+        - rates: []float64
+        + Handle(Event)
+    }
+
+    ' Chain Observer (Observer + Subject behavior via composition)
+    class AggregatorListener implements Observer {
+        - downstream: Subject
+        - sum: float64
+        + Handle(Event)
+    }
+    
+    ' Integration Handler
+    class FraudInspectionHandler implements Observer {
+        - bus: Subject
+        - clients: func(string)*Client
+        + Handle(Event)
+    }
+}
+
+' --- VISITOR PATTERN ---
+
+package "Visitor Pattern" {
+    interface Element {
+        + Accept(Visitor)
+        + Children() []Element
+    }
+
+    interface Visitor {
+        + VisitBank(*Bank)
+        + VisitBranch(*Branch)
+        + VisitClient(*Client)
+        + VisitAccount(*Account)
+        + VisitCard(*Card)
+        + VisitLoan(*Loan)
+        + VisitDeposit(*Deposit)
+    }
+
+    ' Concrete Visitors
+    class InterestVisitor implements Visitor {
+        - total: float64
+        + Result() float64
+    }
+
+    class BalanceVisitor implements Visitor {
+        - assets: float64
+        - liabilities: float64
+        + Assets() float64
+        + Liabilities() float64
+    }
+
+    class HighValueVisitor implements Visitor {
+        - threshold: float64
+        - matches: []Element
+        + Result() []Element
+    }
+
+    class StatementExporter implements Visitor {
+        - depth: int
+        - sb: strings.Builder
+        + Result() string
+    }
+    
+    class FeeVisitor implements Visitor {
+        - total: float64
+        + Result() float64
+    }
+
+    class InspectionVisitor implements Visitor {
+        - issues: []string
+        + Result() []string
+    }
+
+    ' Composite Tree
+    class Bank implements Element {
+        + Name: string
+        + Branches: []*Branch
+    }
+
+    class Branch implements Element {
+        + Name: string
+        + Clients: []*Client
+    }
+
+    class Client implements Element {
+        + Name: string
+        + Accounts: []*Account
+        + Cards: []*Card
+        + Loans: []*Loan
+        + Deposits: []*Deposit
+    }
+
+    class Account implements Element {
+        + ID: string
+        + Balance: float64
+        + Rate: float64
+    }
+
+    class Card implements Element {
+        + ID: string
+        + Limit: float64
+        + Spent: float64
+    }
+
+    class Loan implements Element {
+        + ID: string
+        + Principal: float64
+        + Rate: float64
+        + Months: int
+    }
+
+    class Deposit implements Element {
+        + ID: string
+        + Amount: float64
+        + Rate: float64
+    }
+}
+
+' --- RELATIONSHIPS ---
+
+' Observer relations
+EventBus ..> Event : publishes
+Event o-- Transaction : payload
+AggregatorListener ..> EventBus : uses as downstream
+FraudDetector ..> EventBus : publishes alerts
+FraudInspectionHandler ..> InspectionVisitor : triggers on subtree
+FraudInspectionHandler ..> Client : looks up
+
+' Visitor relations
+Bank *-- Branch
+Branch *-- Client
+Client *-- Account
+Client *-- Card
+Client *-- Loan
+Client *-- Deposit
+
+Bank ..> Visitor : accepts
+InterestVisitor ..> Element : traverses
+BalanceVisitor ..> Element : traverses
+StatementExporter ..> Element : traverses
+
+' Notes for Defense/README
+note right of AggregatorListener
+  **Chain of Observers**
+  Acts as Observer (listens to TX)
+  and Subject (publishes Aggregated).
+end note
+
+note bottom of Visitor
+  **Double Dispatch**
+  Element.Accept(v) calls v.VisitElement(this).
+  Traversal is driven by the Visitor (visitAll).
+end note
+
+@enduml
